@@ -1074,6 +1074,30 @@ unsafe impl BufMut for Vec<u8> {
     }
 }
 
+unsafe impl BufMut for &mut UninitSlice {
+    #[inline]
+    fn remaining_mut(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn chunk_mut(&mut self) -> &mut UninitSlice {
+        // UninitSlice is repr(transparent), so safe to transmute
+        self
+    }
+
+    #[inline]
+    unsafe fn advance_mut(&mut self, cnt: usize) {
+        // Create an empty UninitSlice.
+        let mut empty_slice = [];
+        let empty_slice = UninitSlice::from_raw_parts_mut(empty_slice.as_mut_ptr(), empty_slice.len());
+
+        // Lifetime dance taken from `impl Write for &mut [u8]`.
+        let (_, b) = core::mem::replace(self, empty_slice).split_at_mut(cnt);
+        *self = b;
+    }
+}
+
 // The existence of this function makes the compiler catch if the BufMut
 // trait is "object-safe" or not.
 fn _assert_trait_object(_b: &dyn BufMut) {}
